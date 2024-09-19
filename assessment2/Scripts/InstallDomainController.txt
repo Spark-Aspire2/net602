@@ -1,0 +1,73 @@
+#Set Time zone
+Set-TimeZone -Name "New Zealand Standard Time"
+
+
+#Change Computer Name
+$serverName = "PDC"
+Rename-Computer -NewName $serverName -Restart
+
+
+
+#Set a static IP address in the same subnet of the primary domain controller. 
+#Get-NetAdapter
+$interfaceIndex = 5
+$ipAddress = "192.168.1.1"
+$defaultGateway = "192.168.1.1"
+$dnsServerAddresses= ("192.168.1.1")
+
+New-NetIPAddress -InterfaceIndex $interfaceIndex -IPAddress $ipAddress -PrefixLength 24 -DefaultGateway $defaultGateway
+#Set DNS for the static IPv4
+Set-DnsClientServerAddress -InterfaceIndex $interfaceIndex -ServerAddresses $dnsServerAddresses
+
+
+#Install Rols and Feature of Active Directory
+Install-WindowsFeature -Name "AD-Domain-Services",DNS,DHCP -IncludeManagementTools 
+
+
+#Promote the server as a secondary domain controller
+$User = "administrator"
+$PWord = ConvertTo-SecureString -AsPlainText 'Aspire2' -Force
+$Credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, $PWord
+
+$domainName = "techco.co.nz"
+$domainNetbiosName = "TECHCO"
+
+#Install-ADDSDomainController -InstallDns -DomainName $domainName -Credential $Credential -SafeModeAdministratorPassword $PWord
+Import-Module ADDSDeployment
+Install-ADDSForest `
+-CreateDnsDelegation:$false `
+-DatabasePath "C:\windows\NTDS" `
+-DomainMode "WinThreshold" `
+-DomainName $domainName `
+-DomainNetbiosName $domainNetbiosName `
+-ForestMode "WinThreshold" `
+-InstallDns:$true `
+-LogPath "C:\windows\NTDS" `
+-NoRebootOnCompletion:$false `
+-SysvolPath "C:\windows\SYSVOL" ` 
+-SafeModeAdministratorPassword $PWord ` 
+-Force:$true
+
+#Configure DHCP Server
+$serverName = "PDC"
+$domainName = "techco.co.nz"
+$domainNetbiosName = "TECHCO"
+$computerName =  "$serverName.$domainName"
+$dnsServerAddress = "192.168.1.1"
+$routerAddress = "192.168.1.1"
+
+
+netsh dhcp add securitygroups
+Restart-Service dhcpserver
+$Credential = Get-Credential "$domainNetbiosName\administrator"
+Set-DhcpServerDnsCredential -Credential $Credential -ComputerName $computerName
+Add-DhcpServerInDC -DnsName $computerName -IPAddress $dnsServerAddress
+
+Add-DhcpServerv4Scope -name $domainName -StartRange 192.168.1.10 -EndRange 192.168.1.100 -SubnetMask 255.255.255.0 -State Active
+Set-DhcpServerv4OptionValue -OptionID 3 -Value $routerAddress -ScopeID 192.168.1.0 -ComputerName  $computerName
+Set-DhcpServerv4OptionValue -DnsDomain $domainName -DnsServer $dnsServerAddress
+
+
+
+
+
