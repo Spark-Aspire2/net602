@@ -40,5 +40,9 @@ Add-Computer –domainname $domainName -Credential $Credential -Restart
 Install-WindowsFeature -Name "AD-Domain-Services" -IncludeManagementTools 
 
 
-
+#Create VPN shared folder access firewall rule
+#Remove-NetFirewallRule -DisplayName VPNSharedFolder
+New-NetFirewallRule -DisplayName VPNSharedFolder -Protocol TCP -LocalPort 445 -Direction Inbound -Action Allow -RemoteAddress ("192.168.1.101-192.168.1.140")
+#Get-NetFirewallRule -DisplayName VPNSharedFolder |Get-NetFirewallPortFilter
+#Get-NetFirewallRule -DisplayName VPNSharedFolder |Get-NetFirewallAddressFilter
 
